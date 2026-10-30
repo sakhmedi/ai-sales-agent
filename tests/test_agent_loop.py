@@ -90,7 +90,7 @@ def test_full_run_completes(settings: Settings, icp: ICP, html_http: httpx.Clien
     assert result.company_info is not None and result.company_info.industry == "logistics"
     assert result.qualification is not None and result.qualification.fit == "hot"
     assert result.email is not None
-    assert result.crm is not None and result.crm.dry_run is True
+    assert result.crm is not None and result.crm.status == "dry_run"
     assert result.summary.startswith("Hot lead")
     assert result.usage.input_tokens == 500
     assert result.usage.output_tokens == 100

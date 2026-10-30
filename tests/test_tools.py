@@ -122,12 +122,11 @@ def test_draft_email_is_personalized(ctx: ToolContext) -> None:
     assert ctx.icp.seller.sender_name in email.body
 
 
-def test_save_to_crm_only_logs(ctx: ToolContext, caplog: pytest.LogCaptureFixture) -> None:
+def test_save_to_crm_dry_run_only_logs(ctx: ToolContext, caplog: pytest.LogCaptureFixture) -> None:
     qualification = Qualification(score=10, fit="cold", reasons=[])
 
     with caplog.at_level("INFO"):
         result = save_to_crm(SaveToCrmInput(lead=ideal_company(), qualification=qualification), ctx)
 
-    assert result.status == "logged"
-    assert result.dry_run is True
+    assert result.status == "dry_run"
     assert "Nordic Freight" in caplog.text

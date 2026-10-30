@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     anthropic_effort: Effort = "medium"
 
     hubspot_token: SecretStr = SecretStr("")
+    hubspot_base_url: str = "https://api.hubapi.com"
+    hubspot_pipeline: str = "default"
+    hubspot_deal_stage: str = "appointmentscheduled"
+    hubspot_max_retries: int = 3
 
     smtp_host: str = ""
     smtp_port: int = 587

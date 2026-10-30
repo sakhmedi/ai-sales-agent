@@ -30,7 +30,7 @@ app/
   logging_config.py Logging setup
   agent/            Agent loop (loop.py), prompts, CLI entry point (__main__.py)
   tools/            Tools the agent can call: one module per tool, registered in ALL_TOOLS
-  integrations/     Clients for external services (HubSpot, SMTP, web fetching)
+  integrations/     Clients for external services; hubspot.py = HubSpot CRM (v3, retries)
   api/              FastAPI routers
   models/           Pydantic models (API schemas, domain objects)
 config/icp.yaml     Ideal Customer Profile: industries, size, countries, signals, scoring
@@ -42,6 +42,8 @@ data/               Input lists and local SQLite DB (DB files are gitignored)
 - Manual tool-use loop (no LangChain) in `app/agent/loop.py`, max `AGENT_MAX_STEPS` model calls per lead.
 - Claude extracts facts; scoring in `qualify_lead` is deterministic Python driven by `config/icp.yaml`.
 - Tool errors are returned to the model as `is_error` tool results, never raised out of the loop.
+- `save_to_crm` upserts company (by domain), contact (by email), deal (by name) and adds a note.
+  HubSpot calls are mocked with respx in tests; never hit the real API in tests.
 - Each tool = Pydantic input model + handler + description (`app/tools/base.py: Tool`).
 - Model: `claude-opus-5-5` with adaptive thinking; depth is controlled by `ANTHROPIC_EFFORT`.
 

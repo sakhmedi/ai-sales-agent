@@ -38,15 +38,30 @@ class Qualification(BaseModel):
     reasons: list[str]
 
 
+class ContactInfo(BaseModel):
+    """A real person shown on the company website. Never invented."""
+
+    name: str | None = None
+    email: str | None = Field(default=None, description="Only if shown on the website.")
+    job_title: str | None = None
+
+
 class EmailDraft(BaseModel):
     subject: str
     body: str
 
 
 class CrmSaveResult(BaseModel):
-    status: Literal["logged"]
-    dry_run: bool
+    """What was (or, in dry-run mode, would have been) written to the CRM."""
+
+    status: Literal["dry_run", "saved"]
     message: str
+    company_id: str | None = None
+    contact_id: str | None = None
+    deal_id: str | None = None
+    note_id: str | None = None
+    created_company: bool = False
+    created_deal: bool = False
 
 
 class TokenUsage(BaseModel):

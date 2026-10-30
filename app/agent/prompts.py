@@ -32,7 +32,10 @@ Negative:
 
 Rules:
 - Only use facts you found on the website. If something is unknown, pass null; do not guess.
+- Pass a contact to save_to_crm only for a real person or email address shown on the website
+  (e.g. a sales or management contact). Never construct or guess email addresses.
 - If the website cannot be fetched, qualify with what you know and say so in the summary.
+- If save_to_crm fails, do not retry it more than once; report the error in the summary.
 - Do not call the same tool with the same input twice."""
 
 
