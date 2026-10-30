@@ -49,6 +49,13 @@ signals:
     - id: public_sector
       description: Public sector or government organization
       weight: 20
+    # Big companies rarely state a headcount, but their scale shows. Without this signal an
+    # unknown size costs nothing and a global enterprise can score as warm.
+    - id: enterprise_scale
+      description: >-
+        Far larger than the ICP: thousands of employees, own offices in 30+ countries,
+        listed on a stock exchange, or acquiring other large companies
+      weight: 30
 
 # Points for each hard criterion. Signals add up to `max_signal_points` on top.
 scoring:

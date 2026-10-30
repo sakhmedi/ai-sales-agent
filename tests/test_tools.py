@@ -142,6 +142,44 @@ def test_negative_signal_lowers_score(icp: ICP) -> None:
     assert any(r.startswith("-15") for r in result.reasons)
 
 
+def test_global_enterprise_with_unknown_size_is_cold(icp: ICP) -> None:
+    """The DSV case: right industry and country, no headcount on the site, clearly huge."""
+    dsv = ideal_company(
+        employee_count=None,
+        signals=[
+            {"id": "growth", "evidence": "Acquired Schenker"},
+            {"id": "enterprise_scale", "evidence": "Operates in over 90 countries"},
+        ],
+    )
+
+    result = score_company(dsv, icp)
+
+    assert result.score == 28  # 30 industry + 20 country + 8 growth - 30 enterprise scale
+    assert result.fit == "cold"
+
+
+def test_unknown_size_keeps_a_mid_sized_lead_warm(icp: ICP) -> None:
+    """The LEMAN case: no headcount and no sign of enterprise scale stays warm."""
+    leman = ideal_company(
+        employee_count=None, signals=[{"id": "growth", "evidence": "Added 161 new trailers"}]
+    )
+
+    result = score_company(leman, icp)
+
+    assert (result.score, result.fit) == (58, "warm")
+
+
+def test_hot_needs_confirmed_size(icp: ICP) -> None:
+    all_positive = [{"id": s.id, "evidence": "seen"} for s in icp.signals.positive]
+    unknown_size = ideal_company(employee_count=None, signals=all_positive)
+
+    result = score_company(unknown_size, icp)
+
+    assert result.score == 75  # 30 + 20 + 25 capped signals, hot by points
+    assert result.fit == "warm"
+    assert result.reasons[-1] == "fit capped at warm: company size not confirmed"
+
+
 # --- draft_email / save_to_crm ---
 
 

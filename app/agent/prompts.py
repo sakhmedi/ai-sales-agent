@@ -38,6 +38,8 @@ Negative:
 
 Rules:
 - Only use facts you found on the website. If something is unknown, pass null; do not guess.
+- Employee count is often missing. Still report enterprise_scale when the site shows the company
+  is far bigger than the ICP (e.g. "offices in 90 countries", a stock listing, large acquisitions).
 - Pass a contact to save_to_crm only for a real person or email address shown on the website
   (e.g. a sales or management contact). Never construct or guess email addresses.
 - If the website cannot be fetched, qualify with what you know and say so in the summary.

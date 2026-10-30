@@ -58,7 +58,12 @@ def score_company(info: CompanyInfo, icp: ICP) -> Qualification:
             reasons.append(f"-{signal.weight}: {signal.description} ({evidence[signal.id]})")
 
     score = max(0, min(100, points))
-    return Qualification(score=score, fit=_fit_for(score, icp), reasons=reasons)
+    fit = _fit_for(score, icp)
+    # "hot" means "contact first". That needs a confirmed size, not just a good guess.
+    if fit == "hot" and info.employee_count is None:
+        fit = "warm"
+        reasons.append("fit capped at warm: company size not confirmed")
+    return Qualification(score=score, fit=fit, reasons=reasons)
 
 
 def _fit_for(score: int, icp: ICP) -> Fit:
