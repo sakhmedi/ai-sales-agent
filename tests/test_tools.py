@@ -41,6 +41,34 @@ def test_fetch_returns_clean_text(ctx: ToolContext) -> None:
     assert result.truncated is False
 
 
+def test_fetch_returns_internal_links_priority_first(ctx: ToolContext) -> None:
+    result = fetch_company_website(FetchWebsiteInput(url="https://nordicfreight.dk"), ctx)
+
+    assert [(link.text, link.url) for link in result.links] == [
+        # about/careers-style pages first...
+        ("About us", "https://nordicfreight.dk/en/about-us/"),
+        ("Karriere", "https://www.nordicfreight.dk/karriere"),
+        # ...then the rest in page order. Skipped: the page itself, duplicates, anchors,
+        # mailto, PDFs and other domains.
+        ("Services", "https://nordicfreight.dk/services"),
+    ]
+
+
+def test_fetch_caps_links_but_keeps_priority_pages(ctx: ToolContext) -> None:
+    filler = "".join(f'<a href="/product-{i}">Product {i}</a>' for i in range(40))
+    html = f'<html><body>{filler}<a href="/contact">Contact</a></body></html>'
+    ctx = ToolContext(
+        settings=ctx.settings,
+        icp=ctx.icp,
+        http=make_http(lambda request: httpx.Response(200, html=html)),
+    )
+
+    result = fetch_company_website(FetchWebsiteInput(url="https://x.dk"), ctx)
+
+    assert len(result.links) == 30
+    assert result.links[0].url == "https://x.dk/contact"
+
+
 def test_fetch_truncates_long_text(ctx: ToolContext) -> None:
     ctx.settings.fetch_max_chars = 20
 

@@ -13,7 +13,10 @@ Product: {seller.product}.
 Value proposition: {seller.value_proposition}
 
 Your job is to process one company at a time:
-1. Research it with fetch_company_website (homepage first; at most two more pages if needed).
+1. Research it with fetch_company_website, starting with the homepage. If the HQ country,
+   employee count or ICP signals are still unknown, fetch up to two more pages from the returned
+   links that are most likely to contain them (about/company, contact/locations, careers/jobs)
+   before qualifying. Only fetch URLs from the links; do not guess paths.
 2. Extract the facts and call qualify_lead.
 3. If the fit is hot or warm, call draft_email. Skip it for cold leads.
 4. Call save_to_crm exactly once with everything you have.

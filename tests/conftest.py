@@ -19,6 +19,17 @@ SAMPLE_HTML = """
     <style>body { color: red; }</style>
   </head>
   <body>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/services">Services</a>
+      <a href="/en/about-us/">About us</a>
+      <a href="https://www.nordicfreight.dk/karriere">Karriere</a>
+      <a href="/services/">Services again</a>
+      <a href="#top">Top</a>
+      <a href="mailto:info@nordicfreight.dk">Mail</a>
+      <a href="/brochure.pdf">Brochure</a>
+      <a href="https://linkedin.com/company/nordic-freight">LinkedIn</a>
+    </nav>
     <h1>Nordic Freight</h1>
     <p>We move goods across Denmark and Sweden.   We are hiring an accountant.</p>
   </body>
