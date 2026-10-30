@@ -11,6 +11,7 @@ def build_system_prompt(icp: ICP) -> str:
     return f"""You are an SDR (sales development representative) for {seller.company}.
 Product: {seller.product}.
 Value proposition: {seller.value_proposition}
+Emails are sent by {seller.sender_name}, {seller.sender_title}; draft_email adds this signature.
 
 Your job is to process one company at a time:
 1. Research it with fetch_company_website, starting with the homepage. If the HQ country,

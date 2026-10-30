@@ -17,6 +17,18 @@ The API runs with `uv run uvicorn app.main:app --reload` (health check at http:/
 
 By default `DRY_RUN=true`: the agent logs what it would send to HubSpot and writes nothing.
 
+## Process a list of companies
+Put companies in a CSV with `name` and `website` columns (comma or semicolon separated,
+so Excel exports work). See `data/companies.example.csv`.
+
+```bash
+uv run python -m app.batch data/companies.example.csv
+uv run python -m app.batch data/my_companies.csv --limit 5   # first 5 only
+```
+Each result is saved to SQLite (`data/app.db`, table `lead_results`) as soon as the company is
+done, so an interrupted batch keeps what it already processed. One failing company never stops the batch.
+Your own CSV files in `data/` are gitignored; only the example is committed.
+
 ## HubSpot setup
 
 The agent writes to HubSpot with a **service key**, an account-level API token. A free HubSpot

@@ -13,9 +13,11 @@ dist/
 .env.*
 !.env.example
 
-# Local data
+# Local data (company lists may be private; only the example is committed)
 data/*.db
 data/*.sqlite*
+data/*.csv
+!data/companies.example.csv
 
 # Tool caches
 .pytest_cache/

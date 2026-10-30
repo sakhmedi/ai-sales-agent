@@ -33,6 +33,8 @@ app/
   integrations/     Clients for external services; hubspot.py = HubSpot CRM (v3, retries)
   api/              FastAPI routers
   models/           Pydantic models (API schemas, domain objects)
+  batch.py          CSV loading + batch runner (one failing company never stops the batch)
+  storage.py        SQLAlchemy models and helpers for the lead_results table
 config/icp.yaml     Ideal Customer Profile: industries, size, countries, signals, scoring
 tests/              pytest tests (the agent loop is tested with a scripted fake client)
 data/               Input lists and local SQLite DB (DB files are gitignored)
@@ -70,6 +72,7 @@ uv sync                                   # install dependencies (incl. dev grou
 cp .env.example .env                      # then fill in values
 uv run uvicorn app.main:app --reload      # run API at http://127.0.0.1:8000 (docs at /docs)
 uv run python -m app.agent "Name" https://example.com   # run the agent on one company
+uv run python -m app.batch data/companies.csv [--limit N]  # run a CSV list, results -> SQLite
 uv run pytest                             # run tests
 uv run ruff check .                       # lint
 uv run ruff format .                      # format
