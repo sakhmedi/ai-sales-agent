@@ -12,11 +12,11 @@ from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from types import TracebackType
 from typing import Any, Self
-from urllib.parse import urlparse
 
 import httpx
 
 from app.config import Settings
+from app.domains import company_domain
 from app.models.lead import CompanyInfo, ContactInfo, CrmSaveResult, EmailDraft, Qualification
 
 logger = logging.getLogger(__name__)
@@ -79,13 +79,6 @@ class HubSpotScopeError(HubSpotError):
 
 
 # --- Payload builders (shared by the real sync and the dry-run plan) ---
-
-
-def company_domain(website: str) -> str:
-    """'https://www.Example.dk/about' -> 'example.dk'."""
-    url = website if "://" in website else f"https://{website}"
-    host = (urlparse(url).hostname or "").lower()
-    return host.removeprefix("www.")
 
 
 def company_properties(lead: CompanyInfo) -> dict[str, str]:

@@ -104,7 +104,13 @@ def email_writer() -> FakeEmailWriter:
 def ctx(
     settings: Settings, icp: ICP, html_http: httpx.Client, email_writer: FakeEmailWriter
 ) -> ToolContext:
-    return ToolContext(settings=settings, icp=icp, http=html_http, llm=email_writer)  # type: ignore[arg-type]
+    return ToolContext(
+        settings=settings,
+        icp=icp,
+        http=html_http,
+        llm=email_writer,  # type: ignore[arg-type]
+        allowed_domain="nordicfreight.dk",
+    )
 
 
 class FakeSender:

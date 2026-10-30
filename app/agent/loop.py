@@ -16,6 +16,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.agent.prompts import build_system_prompt, build_user_prompt
 from app.config import Settings
+from app.domains import company_domain
 from app.llm import FALLBACK_BETA, THINKING_UPDATES_BETA
 from app.models.icp import ICP
 from app.models.lead import (
@@ -96,7 +97,11 @@ class SalesAgent:
         state = _RunState(contact=contact)
         usage = TokenUsage()
         # Tools that call Claude (draft_email) add their tokens to this lead's total.
-        ctx = replace(self._ctx, record_usage=usage.add)
+        ctx = replace(
+            self._ctx,
+            record_usage=usage.add,
+            allowed_domain=company_domain(company.website),
+        )
         max_steps = self._settings.agent_max_steps
 
         def finish(status: LeadStatus, steps: int, **extra: Any) -> LeadResult:

@@ -64,16 +64,16 @@ def test_fetch_caps_links_but_keeps_priority_pages(ctx: ToolContext) -> None:
     html = f'<html><body>{filler}<a href="/contact">Contact</a></body></html>'
     ctx = replace(ctx, http=make_http(lambda request: httpx.Response(200, html=html)))
 
-    result = fetch_company_website(FetchWebsiteInput(url="https://x.dk"), ctx)
+    result = fetch_company_website(FetchWebsiteInput(url="https://nordicfreight.dk"), ctx)
 
     assert len(result.links) == 30
-    assert result.links[0].url == "https://x.dk/contact"
+    assert result.links[0].url == "https://nordicfreight.dk/contact"
 
 
 def test_fetch_truncates_long_text(ctx: ToolContext) -> None:
     ctx.settings.fetch_max_chars = 20
 
-    result = fetch_company_website(FetchWebsiteInput(url="https://x.dk"), ctx)
+    result = fetch_company_website(FetchWebsiteInput(url="https://nordicfreight.dk"), ctx)
 
     assert len(result.text) == 20
     assert result.truncated is True
@@ -84,7 +84,7 @@ def test_fetch_http_error_raises_tool_error(ctx: ToolContext) -> None:
     ctx = replace(ctx, http=http)
 
     with pytest.raises(ToolError, match="Could not fetch"):
-        fetch_company_website(FetchWebsiteInput(url="https://x.dk"), ctx)
+        fetch_company_website(FetchWebsiteInput(url="https://nordicfreight.dk"), ctx)
 
 
 def test_fetch_rejects_non_html(ctx: ToolContext) -> None:
@@ -92,12 +92,123 @@ def test_fetch_rejects_non_html(ctx: ToolContext) -> None:
     ctx = replace(ctx, http=http)
 
     with pytest.raises(ToolError, match="non-HTML"):
-        fetch_company_website(FetchWebsiteInput(url="https://x.dk"), ctx)
+        fetch_company_website(FetchWebsiteInput(url="https://nordicfreight.dk"), ctx)
 
 
 def test_fetch_rejects_non_http_scheme(ctx: ToolContext) -> None:
     with pytest.raises(ToolError, match="Invalid URL"):
         fetch_company_website(FetchWebsiteInput(url="file:///etc/passwd"), ctx)
+
+
+# --- fetch_company_website: only the lead's own site ---
+
+
+class RecordingSite:
+    """Fake web server: answers from a {url: response} map and records every request."""
+
+    def __init__(self, pages: dict[str, httpx.Response]) -> None:
+        self.pages = pages
+        self.requested: list[str] = []
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.requested.append(str(request.url))
+        return self.pages.get(str(request.url), httpx.Response(200, html=SITE_HTML))
+
+
+SITE_HTML = "<html><head><title>Nordic Freight</title></head><body>Hello</body></html>"
+
+
+def site_ctx(
+    ctx: ToolContext, pages: dict[str, httpx.Response]
+) -> tuple[ToolContext, RecordingSite]:
+    site = RecordingSite(pages)
+    return replace(ctx, http=make_http(site)), site
+
+
+def redirect(location: str, status: int = 301) -> httpx.Response:
+    return httpx.Response(status, headers={"location": location})
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://evil.com",
+        "https://nordicfreight.dk.evil.com/about",  # lookalike: lead domain as a prefix
+        "https://evilnordicfreight.dk",  # lookalike: lead domain as a suffix without a dot
+        "http://169.254.169.254/latest/meta-data",  # cloud metadata address
+    ],
+)
+def test_fetch_rejects_other_domains_without_any_request(ctx: ToolContext, url: str) -> None:
+    ctx, site = site_ctx(ctx, {})
+
+    with pytest.raises(ToolError, match="outside the lead's website"):
+        fetch_company_website(FetchWebsiteInput(url=url), ctx)
+
+    assert site.requested == []
+
+
+def test_fetch_allows_www_and_subdomains(ctx: ToolContext) -> None:
+    ctx, site = site_ctx(ctx, {})
+
+    for url in ("https://www.nordicfreight.dk", "https://careers.nordicfreight.dk/jobs"):
+        assert fetch_company_website(FetchWebsiteInput(url=url), ctx).title == "Nordic Freight"
+
+    assert len(site.requested) == 2
+
+
+def test_fetch_follows_redirects_within_the_site(ctx: ToolContext) -> None:
+    ctx, site = site_ctx(
+        ctx,
+        {
+            "http://nordicfreight.dk/about": redirect("https://www.nordicfreight.dk/about"),
+            "https://www.nordicfreight.dk/about": redirect("/en/about/", 302),  # relative
+        },
+    )
+
+    result = fetch_company_website(FetchWebsiteInput(url="http://nordicfreight.dk/about"), ctx)
+
+    assert result.url == "https://www.nordicfreight.dk/en/about/"
+    assert site.requested == [
+        "http://nordicfreight.dk/about",
+        "https://www.nordicfreight.dk/about",
+        "https://www.nordicfreight.dk/en/about/",
+    ]
+
+
+def test_fetch_stops_at_redirect_to_another_domain(ctx: ToolContext) -> None:
+    ctx, site = site_ctx(
+        ctx,
+        {
+            "https://nordicfreight.dk/": redirect("https://www.nordicfreight.dk/"),
+            "https://www.nordicfreight.dk/": redirect("https://evil.com/phish", 302),
+        },
+    )
+
+    with pytest.raises(ToolError, match="redirects to outside the lead's website"):
+        fetch_company_website(FetchWebsiteInput(url="https://nordicfreight.dk/"), ctx)
+
+    # The other domain is never contacted, not even once.
+    assert not any("evil.com" in url for url in site.requested)
+
+
+def test_fetch_gives_up_on_redirect_loops(ctx: ToolContext) -> None:
+    ctx, _ = site_ctx(
+        ctx,
+        {
+            "https://nordicfreight.dk/a": redirect("https://nordicfreight.dk/b"),
+            "https://nordicfreight.dk/b": redirect("https://nordicfreight.dk/a"),
+        },
+    )
+
+    with pytest.raises(ToolError, match="Too many redirects"):
+        fetch_company_website(FetchWebsiteInput(url="https://nordicfreight.dk/a"), ctx)
+
+
+def test_fetch_refuses_without_a_lead_domain(ctx: ToolContext) -> None:
+    with pytest.raises(ToolError, match="No lead website"):
+        fetch_company_website(
+            FetchWebsiteInput(url="https://nordicfreight.dk"), replace(ctx, allowed_domain="")
+        )
 
 
 # --- qualify_lead ---

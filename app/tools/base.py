@@ -29,6 +29,9 @@ class ToolContext:
     llm: anthropic.Anthropic
     # Tools that call Claude report token usage here, so it counts toward the lead's total.
     record_usage: Callable[[BetaUsage], None] = _ignore_usage
+    # Domain of the lead being processed. fetch_company_website only fetches this site and its
+    # subdomains, so a page (or a prompt injection in it) can't send the agent elsewhere.
+    allowed_domain: str = ""
 
 
 @dataclass(frozen=True)

@@ -49,10 +49,12 @@ from that evidence only → `save_to_crm` upserts HubSpot → the draft waits in
 ## Example run (real output)
 
 All 10 companies in [`data/sample_leads.csv`](data/sample_leads.csv) (public Danish B2B companies,
-fake `@example.com` contacts) in `DRY_RUN` mode, with `claude-sonnet-5-5` at effort `medium`:
+fake `@example.com` contacts) in `DRY_RUN` mode. This run used **`ANTHROPIC_MODEL=claude-sonnet-5-5`**
+at effort `medium`, set in `.env`. The default is `claude-opus-5-5`, which is more capable and costs
+about twice as much per token; Sonnet is a good fit for high-volume lead processing.
 
 ```bash
-uv run python -m app.cli run data/sample_leads.csv
+uv run python -m app.cli run data/sample_leads.csv     # with ANTHROPIC_MODEL=claude-sonnet-5-5
 ```
 
 | Company | Fit | Score | Why (from the agent's evidence) |
@@ -84,7 +86,7 @@ uv run python -m app.cli run data/sample_leads.csv
 ```
 
 10 leads in 2 min 46 s, no failures, 5 drafts waiting for approval. 76% of input tokens were prompt-cache
-reads; the run cost about **$0.61** at list prices (~$0.06 per lead). Cold leads are cheaper because
+reads; the run cost about **$0.61** at Sonnet 5.5 list prices (~$0.06 per lead). Cold leads are cheaper because
 no email is written.
 
 <details>
@@ -161,6 +163,9 @@ this is exactly the kind of case the human approval step is there to catch. See
   approved, and refuses to send twice or to email a company that was already contacted. A sent email
   can't be taken back, a bad one costs a lead and domain reputation, and review takes a minute. Not
   giving the agent a send tool is also a structural defense against prompt injection from scraped websites.
+- **The agent can only read the lead's own website.** `fetch_company_website` accepts URLs on the
+  lead's domain and its subdomains only, and follows redirects by hand so every hop is checked
+  before it is requested. A scraped page can't steer the agent to another site or an internal address.
 - **`DRY_RUN=true` by default.** HubSpot writes and SMTP sends are logged as "would send" payloads.
   Real side effects need an explicit `DRY_RUN=false`.
 - **Retries and idempotency.** The HubSpot client retries 429/5xx with exponential backoff and honors
@@ -199,7 +204,7 @@ All settings come from environment variables / `.env` (see [`.env.example`](.env
 | Variable | Default | Purpose |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | – | Claude API key |
-| `ANTHROPIC_MODEL` | `claude-opus-5-5` | model for the agent and the email writer |
+| `ANTHROPIC_MODEL` | `claude-opus-5-5` | model for the agent and the email writer (the example run used `claude-sonnet-5-5`) |
 | `ANTHROPIC_EFFORT` | `medium` | reasoning effort: `low` … `max` |
 | `AGENT_MAX_STEPS` | `10` | max model calls per lead |
 | `ICP_PATH` | `config/icp.yaml` | Ideal Customer Profile and scoring weights |
@@ -253,6 +258,9 @@ uv run python -m app.outbox reject 1
 |---|---|
 | `new` → `qualified` / `disqualified` → `pending_approval` → `sent` | `pending_approval` → `sent` / `rejected` / `failed`, or `superseded` by a newer draft |
 
+A `failed` send (e.g. wrong SMTP credentials) stays reviewable: fix the settings and approve it again,
+or reject it.
+
 ## Integrations setup
 
 <details>
@@ -303,7 +311,7 @@ real recipient is emailed while testing.
 ## Tests
 
 ```bash
-uv run pytest        # 76 tests, no network
+uv run pytest        # 89 tests, no network
 uv run ruff check .
 uv run mypy app      # strict
 ```

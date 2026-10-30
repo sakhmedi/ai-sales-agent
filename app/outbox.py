@@ -47,12 +47,17 @@ class ApprovalResult:
     error: str | None = None
 
 
-def list_pending(engine: Engine) -> list[Email]:
+# A failed send can be approved again (e.g. after fixing SMTP settings) or rejected.
+REVIEWABLE = (EmailStatus.PENDING_APPROVAL, EmailStatus.FAILED)
+
+
+def list_pending(engine: Engine, include_failed: bool = False) -> list[Email]:
+    statuses = REVIEWABLE if include_failed else (EmailStatus.PENDING_APPROVAL,)
     with open_session(engine) as session:
         query = (
             select(Email)
             .options(joinedload(Email.lead))
-            .where(Email.status == EmailStatus.PENDING_APPROVAL)
+            .where(Email.status.in_(statuses))
             .order_by(Email.id)
         )
         return list(session.scalars(query))
@@ -66,13 +71,14 @@ def get_email(engine: Engine, email_id: int) -> Email:
         return email
 
 
-def _pending(session: Session, email_id: int) -> Email:
+def _reviewable(session: Session, email_id: int) -> Email:
     email = session.get(Email, email_id, options=[joinedload(Email.lead)])
     if email is None:
         raise OutboxError(f"Email {email_id} does not exist.")
-    if email.status != EmailStatus.PENDING_APPROVAL:
+    if email.status not in REVIEWABLE:
         raise OutboxError(
-            f"Email {email_id} is '{email.status}'; only pending_approval emails can be reviewed."
+            f"Email {email_id} is '{email.status}'; only pending_approval or failed emails "
+            "can be reviewed."
         )
     return email
 
@@ -85,9 +91,12 @@ def approve(
     reviewer: str,
     to: str | None = None,
 ) -> ApprovalResult:
-    """A human approved this draft: send it (or, in DRY_RUN, only log what would be sent)."""
+    """A human approved this draft: send it (or, in DRY_RUN, only log what would be sent).
+
+    Also retries an email whose previous send failed.
+    """
     with open_session(engine) as session, session.begin():
-        email = _pending(session, email_id)
+        email = _reviewable(session, email_id)
         recipient = (to or email.to_address or "").strip()
         if "@" not in recipient:
             raise MissingRecipient(
@@ -121,6 +130,7 @@ def approve(
 
         email.status = EmailStatus.SENT
         email.sent_at = now
+        email.error = None
         email.lead.status = LeadStage.SENT
         logger.info("Email %d approved by %s and sent to %s", email_id, reviewer, recipient)
         return ApprovalResult(email_id, "sent", recipient)
@@ -129,7 +139,7 @@ def approve(
 def reject(engine: Engine, email_id: int, reviewer: str) -> Email:
     """A human rejected this draft. The lead stays qualified for a new attempt."""
     with open_session(engine) as session, session.begin():
-        email = _pending(session, email_id)
+        email = _reviewable(session, email_id)
         email.status = EmailStatus.REJECTED
         email.reviewed_by = reviewer
         email.reviewed_at = datetime.now(UTC)
@@ -169,13 +179,16 @@ def main() -> None:
 
     try:
         if args.command == "list":
-            pending = list_pending(engine)
+            pending = list_pending(engine, include_failed=True)
             if not pending:
                 print("No emails waiting for approval.")
             for e in pending:
+                failed = (
+                    "  [FAILED: approve again to retry]" if e.status == EmailStatus.FAILED else ""
+                )
                 print(
                     f"#{e.id}  {e.lead.name} ({e.lead.fit}, {e.lead.score})  "
-                    f"to={e.to_address or '-'}  {e.subject}"
+                    f"to={e.to_address or '-'}  {e.subject}{failed}"
                 )
         elif args.command == "show":
             e = get_email(engine, args.email_id)

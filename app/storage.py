@@ -9,7 +9,7 @@ from sqlalchemy import Engine, ForeignKey, String, Text, create_engine, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
 
-from app.integrations.hubspot import company_domain
+from app.domains import company_domain
 from app.models.lead import LeadResult
 from app.models.outreach import EmailStatus, LeadStage
 

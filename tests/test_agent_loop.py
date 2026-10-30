@@ -187,3 +187,23 @@ def test_known_contact_is_given_to_the_model_and_kept(
     assert "test+leman@example.com" in first_prompt
     # Kept even though the model never passed it to a tool.
     assert result.contact == contact
+
+
+def test_agent_cannot_fetch_outside_the_lead_domain(
+    settings: Settings, icp: ICP, html_http: httpx.Client
+) -> None:
+    client = FakeClient(
+        [
+            response(
+                "tool_use", tool_use("t1", "fetch_company_website", {"url": "https://evil.com"})
+            ),
+            response("end_turn", text("Done.")),
+        ]
+    )
+
+    make_agent(client, settings, icp, html_http).run(COMPANY)
+
+    tool_result = client.calls[1]["messages"][-1]["content"][0]
+    assert tool_result["is_error"] is True
+    assert "outside the lead's website" in tool_result["content"]
+    assert "nordicfreight.dk" in tool_result["content"]  # the agent sets the domain per lead

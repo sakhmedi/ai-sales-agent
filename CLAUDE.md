@@ -61,6 +61,8 @@ data/               Input lists and local SQLite DB (DB files are gitignored)
   Never log secrets or full email bodies at INFO level.
 - **No secrets in code.** All keys and tokens come from `app.config.Settings` (env / `.env`).
   Secrets are typed as `SecretStr`. `.env` is never committed; update `.env.example` when adding settings.
+- **The agent only reads the lead's own website.** `fetch_company_website` checks the lead domain
+  (`ToolContext.allowed_domain`) for the URL and every redirect hop. Don't loosen this.
 - **The agent never sends email.** Drafts are stored as `pending_approval`; sending happens only in
   `app/outbox.py` after a human approves. Never give the agent a send tool.
 - **DRY_RUN is the default.** With `DRY_RUN=true`, nothing is sent and nothing is written to HubSpot;

@@ -20,11 +20,11 @@ from sqlalchemy.orm import selectinload
 
 from app.agent.loop import SalesAgent
 from app.config import Settings
-from app.integrations.hubspot import company_domain
+from app.domains import company_domain
 from app.models.icp import load_icp
 from app.models.lead import CompanyInput, ContactInfo, LeadResult, LeadStatus, TokenUsage
-from app.models.outreach import EmailStatus, LeadStage
-from app.outbox import ApprovalResult, EmailSender, approve, reject
+from app.models.outreach import LeadStage
+from app.outbox import REVIEWABLE, ApprovalResult, EmailSender, approve, reject
 from app.storage import Email, Lead, LeadRecord, open_session, persist_result
 
 logger = logging.getLogger(__name__)
@@ -242,11 +242,11 @@ def _pending_email_id(engine: Engine, lead_id: int) -> int:
     with open_session(engine) as session:
         email_id = session.scalar(
             select(Email.id)
-            .where(Email.lead_id == lead_id, Email.status == EmailStatus.PENDING_APPROVAL)
+            .where(Email.lead_id == lead_id, Email.status.in_(REVIEWABLE))
             .order_by(Email.id.desc())
         )
     if email_id is None:
-        raise NoPendingEmail(f"Lead {lead_id} has no email waiting for approval.")
+        raise NoPendingEmail(f"Lead {lead_id} has no email waiting for approval or retry.")
     return email_id
 
 

@@ -203,3 +203,31 @@ def test_reject_keeps_lead_qualified(engine: Engine) -> None:
     assert (rejected.status, rejected.reviewed_by) == (EmailStatus.REJECTED, "salima")
     assert lead(engine).status == LeadStage.QUALIFIED
     assert list_pending(engine) == []
+
+
+def test_failed_email_can_be_approved_again(engine: Engine, live_settings: Settings) -> None:
+    email_id = persist_result(engine, "run-1", result(contact_email="anna@leman.com")).email_id
+    assert email_id is not None
+    approve(engine, email_id, live_settings, FakeSender(fail=True), reviewer="salima")
+    assert [e.id for e in list_pending(engine, include_failed=True)] == [email_id]
+    assert list_pending(engine) == []  # not a new draft, a failed send
+
+    sender = FakeSender()
+    outcome = approve(engine, email_id, live_settings, sender, reviewer="salima")
+
+    assert outcome.status == "sent"
+    assert len(sender.sent) == 1
+    retried = email(engine, email_id)
+    assert (retried.status, retried.error) == (EmailStatus.SENT, None)
+    assert lead(engine).status == LeadStage.SENT
+
+
+def test_failed_email_can_be_rejected(engine: Engine, live_settings: Settings) -> None:
+    email_id = persist_result(engine, "run-1", result(contact_email="anna@leman.com")).email_id
+    assert email_id is not None
+    approve(engine, email_id, live_settings, FakeSender(fail=True), reviewer="salima")
+
+    reject(engine, email_id, reviewer="salima")
+
+    assert email(engine, email_id).status == EmailStatus.REJECTED
+    assert lead(engine).status == LeadStage.QUALIFIED

@@ -6,6 +6,7 @@ import httpx
 from bs4 import BeautifulSoup
 from pydantic import BaseModel
 
+from app.domains import is_same_site
 from app.tools.base import Tool, ToolContext, ToolError
 
 logger = logging.getLogger(__name__)
@@ -13,6 +14,7 @@ logger = logging.getLogger(__name__)
 USER_AGENT = "Mozilla/5.0 (compatible; AISalesAgent/0.1)"
 NOISE_TAGS = ["script", "style", "noscript", "svg", "iframe", "form"]
 
+MAX_REDIRECTS = 5
 MAX_LINKS = 30
 MAX_LINK_TEXT_CHARS = 80
 SKIPPED_EXTENSIONS = (".pdf", ".jpg", ".jpeg", ".png", ".gif", ".svg", ".zip", ".mp4", ".webp")
@@ -110,15 +112,42 @@ def parse_page(html: str, base_url: str) -> tuple[str, str, str, list[PageLink]]
     return title, meta_description, text, extract_links(soup, base_url)
 
 
-def fetch_company_website(params: FetchWebsiteInput, ctx: ToolContext) -> WebsiteContent:
-    url = _normalize_url(params.url)
-    try:
+def _check_allowed(url: str, allowed_domain: str, *, redirected: bool = False) -> None:
+    if not is_same_site(url, allowed_domain):
+        action = "redirects to" if redirected else "is"
+        raise ToolError(
+            f"{url} {action} outside the lead's website. Only pages on {allowed_domain} "
+            "and its subdomains can be fetched."
+        )
+
+
+def _get_within_site(url: str, ctx: ToolContext) -> httpx.Response:
+    """GET a page, following redirects by hand so every hop is checked against the lead's domain.
+
+    httpx's follow_redirects would only let us check the final URL, after a request to an
+    intermediate host (another site, or an internal address) had already been made.
+    """
+    for _ in range(MAX_REDIRECTS + 1):
         response = ctx.http.get(
             url,
             headers={"User-Agent": USER_AGENT},
             timeout=ctx.settings.http_timeout_seconds,
-            follow_redirects=True,
+            follow_redirects=False,
         )
+        if not response.is_redirect:
+            return response
+        url = _normalize_url(urljoin(url, response.headers["location"]))
+        _check_allowed(url, ctx.allowed_domain, redirected=True)
+    raise ToolError(f"Too many redirects (more than {MAX_REDIRECTS}).")
+
+
+def fetch_company_website(params: FetchWebsiteInput, ctx: ToolContext) -> WebsiteContent:
+    if not ctx.allowed_domain:
+        raise ToolError("No lead website is set, so no page can be fetched.")
+    url = _normalize_url(params.url)
+    _check_allowed(url, ctx.allowed_domain)
+    try:
+        response = _get_within_site(url, ctx)
         response.raise_for_status()
     except httpx.HTTPError as e:
         raise ToolError(f"Could not fetch {url}: {e}") from e
@@ -155,7 +184,8 @@ TOOL = Tool(
         "Download a web page and return its title, meta description, visible text "
         "(scripts and styles removed, length-limited) and up to 30 internal links, with "
         "about/contact/careers-style pages listed first. Use the links to pick the next page "
-        "to fetch instead of guessing URLs."
+        "to fetch instead of guessing URLs. Only pages on the lead's own domain (and its "
+        "subdomains) can be fetched."
     ),
     input_model=FetchWebsiteInput,
     handler=fetch_company_website,

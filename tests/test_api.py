@@ -167,3 +167,21 @@ def test_reject(client: TestClient) -> None:
     detail = client.get(f"/leads/{warm}").json()
     assert detail["status"] == "qualified"
     assert detail["email"]["status"] == "rejected"
+
+
+def test_failed_send_can_be_retried(
+    client: TestClient, settings: Settings, sender: FakeSender
+) -> None:
+    settings.dry_run = False
+    upload(client)
+    warm = lead_id(client, "Warmco")
+    client.post(f"/leads/{warm}/run")
+    sender.fail = True
+
+    failed = client.post(f"/leads/{warm}/approve", json={"reviewer": "salima"}).json()
+    sender.fail = False
+    retried = client.post(f"/leads/{warm}/approve", json={"reviewer": "salima"}).json()
+
+    assert (failed["status"], failed["error"]) == ("failed", "SMTP login failed.")
+    assert retried["status"] == "sent"
+    assert client.get(f"/leads/{warm}").json()["email"]["error"] is None

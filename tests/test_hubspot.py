@@ -10,6 +10,7 @@ import respx
 from pydantic import SecretStr
 
 from app.config import Settings
+from app.domains import company_domain
 from app.integrations.hubspot import (
     CONTACT_TO_COMPANY,
     DEAL_TO_COMPANY,
@@ -18,7 +19,6 @@ from app.integrations.hubspot import (
     HubSpotAuthError,
     HubSpotClient,
     HubSpotError,
-    company_domain,
 )
 from app.models.lead import CompanyInfo, ContactInfo, EmailDraft, Qualification
 from app.tools import ToolContext, ToolError
