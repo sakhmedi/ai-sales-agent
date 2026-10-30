@@ -1,0 +1,18 @@
+# Secrets never go into the image; compose passes .env at runtime.
+.env
+.env.*
+!.env.example
+
+.git
+.venv
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.vscode/
+.idea/
+
+data/*.db
+data/*.sqlite*
+tests/
