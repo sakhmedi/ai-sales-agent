@@ -19,19 +19,21 @@ By default `DRY_RUN=true`: the agent logs what it would send to HubSpot and writ
 
 ## HubSpot setup
 
-The agent writes to HubSpot through a **private app** token. A free HubSpot account is enough.
+The agent writes to HubSpot with a **service key**, an account-level API token. A free HubSpot
+account is enough. This setup was tested end to end on a free account.
 
 ### 1. Create a free HubSpot account
 1. Go to https://www.hubspot.com and click **Get started free** (Free CRM).
-2. Sign up and finish onboarding. You land in your HubSpot account.
+2. Sign up. When asked for a company website and you have none, `example.com` works.
 
-### 2. Create a private app
-HubSpot now lists private apps under "Legacy apps".
+### 2. Create a service key
+New HubSpot accounts no longer offer legacy private apps; service keys replace them for
+calling the API from your own code.
 
-1. In HubSpot, open **Development** in the main menu, then **Legacy apps** in the left sidebar.
-2. Click **Create legacy app** and choose **Private**.
-3. **Basic Info** tab: name it e.g. `AI Sales Agent`.
-4. **Scopes** tab: click **Add new scope** and select:
+1. In HubSpot, open **Development** in the main menu, then **Keys → Service keys**
+   (on some accounts: **Settings → Integrations → Service keys**).
+2. Click **Create service key** and name it e.g. `AI Sales Agent`.
+3. Add these scopes:
 
    | Scope | Used for |
    |---|---|
@@ -44,22 +46,32 @@ HubSpot now lists private apps under "Legacy apps".
    | `crm.schemas.deals.read` | check that the custom deal properties exist |
    | `crm.schemas.deals.write` | create the custom deal properties |
 
-5. Click **Create app**, then **Continue creating**.
+4. Create the key and copy it.
 
-### 3. Copy the token
-1. Open the app and go to the **Auth** tab.
-2. Click **Show token** and copy it.
-3. In `.env`:
-   ```
-   HUBSPOT_TOKEN=pat-...
-   DRY_RUN=false
-   ```
-   Never commit `.env`; it is in `.gitignore`.
+> Older accounts that still have **Development → Legacy apps → Private app** can use that app's
+> access token instead. Both are sent the same way (`Authorization: Bearer <token>`).
+
+### 3. Configure `.env`
+```
+HUBSPOT_TOKEN=<your service key>
+DRY_RUN=true
+```
+Never commit `.env` (it is in `.gitignore`) and never paste the key into code or chat.
+
+Check that the key works (read-only, writes nothing):
+```bash
+uv run python -c "from app.config import get_settings; from app.integrations.hubspot import HubSpotClient; c = HubSpotClient.from_settings(get_settings()); print('OK, company id:', c.search('companies', 'domain', 'example.com'))"
+```
+`OK, company id: None` means the key works and there is simply no such company.
 
 ### 4. First run
-```bash
-uv run python -m app.agent "Company name" https://company.example
-```
+1. Run once with `DRY_RUN=true` and check the logged `would send to HubSpot` plan.
+2. Set `DRY_RUN=false` and run the agent on one company:
+   ```bash
+   uv run python -m app.agent "Company name" https://company.example
+   ```
+3. Set `DRY_RUN=true` again when you are done.
+
 On the first real run the agent creates two custom deal properties, **AI lead score** (`ai_lead_score`)
 and **AI lead fit** (`ai_lead_fit`). In HubSpot you'll then see:
 
@@ -68,14 +80,24 @@ and **AI lead fit** (`ai_lead_fit`). In HubSpot you'll then see:
 - **Deal** `"<Company> - AI SDR"` with score and fit, linked to the company and contact
 - **Note** on the deal with the email draft and the qualification reasons
 
-Running the agent again for the same company updates the existing deal instead of creating a duplicate.
+Running the agent again for the same company updates the existing deal instead of creating a
+duplicate; each run adds a new note with the latest email draft.
+
+### 5. See the AI fields in HubSpot
+Custom properties are hidden by default.
+
+- **On a deal:** open the deal, scroll to the end of **About this deal** and click
+  **View all properties**, then search `AI lead`. To pin them, customize the **About this deal**
+  card and add both properties.
+- **In the deals list:** switch to the table view, click **Edit columns** and add
+  **AI lead score** and **AI lead fit**. Sorting by score shows the hottest leads first.
 
 ### Troubleshooting
-- `401`: the token is wrong or was rotated. Copy it again from the **Auth** tab.
-- `403`: a scope is missing. Add it on the **Scopes** tab, save, and run again.
+- `401`: the key is wrong or was rotated. Create or copy it again.
+- `403`: a scope is missing. Add it to the service key and run again.
 - `429`: HubSpot rate limit. The client retries automatically (`HUBSPOT_MAX_RETRIES`).
-- Deal stage error: the default pipeline in your account may use other stage IDs.
-  Set `HUBSPOT_DEAL_STAGE` (and `HUBSPOT_PIPELINE`) in `.env`.
+- Deal stage error (`400`): your pipeline may use other stage IDs. Find them under
+  **Settings → Objects → Deals → Pipelines** and set `HUBSPOT_DEAL_STAGE` (and `HUBSPOT_PIPELINE`) in `.env`.
 
 > The client uses HubSpot's legacy `/crm/v3` endpoints (supported until September 2027).
 > Moving to the date-based API (`/crm/objects/2026-09/...`) is a planned follow-up.
