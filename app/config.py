@@ -1,7 +1,11 @@
 from functools import lru_cache
+from pathlib import Path
+from typing import Literal
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+Effort = Literal["low", "medium", "high", "xhigh", "max"]
 
 
 class Settings(BaseSettings):
@@ -13,7 +17,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     anthropic_api_key: SecretStr = SecretStr("")
-    anthropic_model: str = "claude-sonnet-5-5"
+    anthropic_model: str = "claude-opus-5-5"
+    anthropic_effort: Effort = "medium"
 
     hubspot_token: SecretStr = SecretStr("")
 
@@ -25,6 +30,12 @@ class Settings(BaseSettings):
 
     # When true, no real emails are sent and nothing is written to the CRM.
     dry_run: bool = True
+
+    # Agent loop
+    agent_max_steps: int = 10
+    icp_path: Path = Path("config/icp.yaml")
+    fetch_max_chars: int = 8000
+    http_timeout_seconds: float = 10.0
 
     database_url: str = "sqlite:///data/app.db"
     log_level: str = "INFO"

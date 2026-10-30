@@ -5,11 +5,13 @@ description = "Autonomous AI SDR: researches companies, qualifies leads against 
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "anthropic>=0.40",
+    "anthropic>=2.3",
+    "beautifulsoup4>=4.12",
     "fastapi>=0.115",
     "httpx>=0.27",
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
+    "pyyaml>=6.0",
     "sqlalchemy>=2.0",
     "uvicorn[standard]>=0.32",
 ]
@@ -19,6 +21,7 @@ dev = [
     "mypy>=1.13",
     "pytest>=8.3",
     "ruff>=0.8",
+    "types-pyyaml>=6.0",
 ]
 
 [tool.pytest.ini_options]

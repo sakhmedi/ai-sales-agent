@@ -28,14 +28,22 @@ app/
   main.py           FastAPI app factory (create_app) and app instance
   config.py         Settings loaded from env / .env (get_settings)
   logging_config.py Logging setup
-  agent/            Agent loop: talks to Claude, dispatches tool calls
-  tools/            Tools the agent can call (research, qualify, draft email, CRM sync)
+  agent/            Agent loop (loop.py), prompts, CLI entry point (__main__.py)
+  tools/            Tools the agent can call: one module per tool, registered in ALL_TOOLS
   integrations/     Clients for external services (HubSpot, SMTP, web fetching)
   api/              FastAPI routers
   models/           Pydantic models (API schemas, domain objects)
-tests/              pytest tests
+config/icp.yaml     Ideal Customer Profile: industries, size, countries, signals, scoring
+tests/              pytest tests (the agent loop is tested with a scripted fake client)
 data/               Input lists and local SQLite DB (DB files are gitignored)
 ```
+
+## Agent design
+- Manual tool-use loop (no LangChain) in `app/agent/loop.py`, max `AGENT_MAX_STEPS` model calls per lead.
+- Claude extracts facts; scoring in `qualify_lead` is deterministic Python driven by `config/icp.yaml`.
+- Tool errors are returned to the model as `is_error` tool results, never raised out of the loop.
+- Each tool = Pydantic input model + handler + description (`app/tools/base.py: Tool`).
+- Model: `claude-opus-5-5` with adaptive thinking; depth is controlled by `ANTHROPIC_EFFORT`.
 
 ## Code rules
 - **Type hints everywhere**, including return types. Code must pass `mypy` (strict).
@@ -57,6 +65,7 @@ data/               Input lists and local SQLite DB (DB files are gitignored)
 uv sync                                   # install dependencies (incl. dev group)
 cp .env.example .env                      # then fill in values
 uv run uvicorn app.main:app --reload      # run API at http://127.0.0.1:8000 (docs at /docs)
+uv run python -m app.agent "Name" https://example.com   # run the agent on one company
 uv run pytest                             # run tests
 uv run ruff check .                       # lint
 uv run ruff format .                      # format

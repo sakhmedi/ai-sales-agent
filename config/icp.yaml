@@ -1,0 +1,62 @@
+# Ideal Customer Profile (ICP) for Fjordflow ApS, a fictional Danish B2B SaaS company.
+# Fjordflow sells finance workflow automation (invoice approval, expense handling,
+# month-end close) to mid-sized companies in the Nordics.
+
+seller:
+  company: Fjordflow ApS
+  country: DK
+  product: Finance workflow automation platform
+  value_proposition: >-
+    Fjordflow automates invoice approval and month-end close for mid-sized Nordic
+    companies, cutting manual finance work by up to 60% and integrating with
+    e-conomic, Microsoft Dynamics and NetSuite.
+  sender_name: Mette Jensen
+  sender_title: Account Executive
+
+# Industry labels the agent must use when classifying a company.
+industries:
+  - logistics
+  - wholesale
+  - manufacturing
+  - professional services
+  - software
+
+company_size:
+  min_employees: 50
+  max_employees: 1000
+
+# ISO 3166-1 alpha-2 country codes. Quoted on purpose: unquoted NO is parsed as false in YAML.
+countries: ["DK", "SE", "NO", "FI"]
+
+signals:
+  positive:
+    - id: hiring_finance
+      description: Company is hiring finance or accounting roles
+      weight: 10
+    - id: growth
+      description: Recent funding, acquisition, new offices or international expansion
+      weight: 8
+    - id: uses_supported_erp
+      description: Uses e-conomic, Microsoft Dynamics or NetSuite
+      weight: 7
+    - id: manual_processes
+      description: Mentions manual, paper-based or spreadsheet-driven finance processes
+      weight: 5
+  negative:
+    - id: has_competitor
+      description: Already uses a competing finance automation tool
+      weight: 15
+    - id: public_sector
+      description: Public sector or government organization
+      weight: 20
+
+# Points for each hard criterion. Signals add up to `max_signal_points` on top.
+scoring:
+  industry: 30
+  company_size: 25
+  country: 20
+  max_signal_points: 25
+
+fit_thresholds:
+  hot: 70
+  warm: 40
