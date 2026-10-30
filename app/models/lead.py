@@ -1,6 +1,7 @@
 from enum import StrEnum
 from typing import Literal
 
+from anthropic.types.beta import BetaUsage
 from pydantic import BaseModel, Field, computed_field
 
 
@@ -9,6 +10,16 @@ class CompanyInput(BaseModel):
 
     name: str
     website: str
+
+
+class SignalEvidence(BaseModel):
+    """An ICP signal and the concrete fact on the website that shows it."""
+
+    id: str = Field(description="ICP signal ID.")
+    evidence: str = Field(
+        min_length=1,
+        description="Short fact or quote from the website, e.g. 'Added 161 new trailers in 2026'.",
+    )
 
 
 class CompanyInfo(BaseModel):
@@ -22,8 +33,8 @@ class CompanyInfo(BaseModel):
     employee_count: int | None = Field(default=None, description="Best estimate, if known.")
     country: str | None = Field(default=None, description="ISO 3166-1 alpha-2 code, e.g. 'DK'.")
     description: str = Field(default="", description="One or two sentences on what they do.")
-    signals: list[str] = Field(
-        default=[], description="IDs of ICP signals (positive or negative) found as evidence."
+    signals: list[SignalEvidence] = Field(
+        default=[], description="ICP signals (positive or negative) found, each with evidence."
     )
 
 
@@ -81,6 +92,13 @@ class TokenUsage(BaseModel):
     def total_input_tokens(self) -> int:
         """Everything the model read, cached or not."""
         return self.input_tokens + self.cache_read_input_tokens + self.cache_creation_input_tokens
+
+    def add(self, usage: BetaUsage) -> None:
+        """Add the usage of one API response."""
+        self.input_tokens += usage.input_tokens
+        self.output_tokens += usage.output_tokens
+        self.cache_read_input_tokens += usage.cache_read_input_tokens or 0
+        self.cache_creation_input_tokens += usage.cache_creation_input_tokens or 0
 
 
 class LeadStatus(StrEnum):

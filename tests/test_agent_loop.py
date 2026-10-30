@@ -9,6 +9,7 @@ from app.agent import SalesAgent
 from app.config import Settings
 from app.models.icp import ICP
 from app.models.lead import CompanyInput, LeadStatus
+from tests.conftest import FakeEmailWriter
 
 COMPANY = CompanyInput(name="Nordic Freight", website="https://nordicfreight.dk")
 COMPANY_INFO = {
@@ -18,7 +19,7 @@ COMPANY_INFO = {
     "employee_count": 200,
     "country": "DK",
     "description": "Moves goods across the Nordics.",
-    "signals": ["hiring_finance"],
+    "signals": [{"id": "hiring_finance", "evidence": "Hiring a financial controller"}],
 }
 QUALIFICATION = {"score": 85, "fit": "hot", "reasons": ["test"]}
 
@@ -49,7 +50,12 @@ class FakeClient:
     def __init__(self, responses: list[SimpleNamespace]) -> None:
         self._responses = list(responses)
         self.calls: list[dict[str, Any]] = []
-        self.beta = SimpleNamespace(messages=SimpleNamespace(create=self._create))
+        self.email_writer = FakeEmailWriter()
+        self.beta = SimpleNamespace(
+            messages=SimpleNamespace(
+                create=self._create, parse=self.email_writer.beta.messages.parse
+            )
+        )
 
     def _create(self, **kwargs: Any) -> SimpleNamespace:
         self.calls.append({**kwargs, "messages": list(kwargs["messages"])})
@@ -92,10 +98,12 @@ def test_full_run_completes(settings: Settings, icp: ICP, html_http: httpx.Clien
     assert result.email is not None
     assert result.crm is not None and result.crm.status == "dry_run"
     assert result.summary.startswith("Hot lead")
-    assert result.usage.input_tokens == 500
-    assert result.usage.output_tokens == 100
+    # 5 agent steps (100 in / 20 out each) + the draft_email call (200 in / 80 out).
+    assert result.usage.input_tokens == 500 + 200
+    assert result.usage.output_tokens == 100 + 80
     assert result.usage.cache_read_input_tokens == 1500
-    assert result.usage.total_input_tokens == 500 + 1500 + 250
+    assert result.usage.total_input_tokens == 700 + 1500 + 250
+    assert result.email is not None and "161 new trailers" in result.email.body
 
     # Every tool result is sent back with the id of the tool call it answers.
     second_call_messages = client.calls[1]["messages"]

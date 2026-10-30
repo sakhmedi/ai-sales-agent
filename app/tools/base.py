@@ -2,8 +2,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+import anthropic
 import httpx
-from anthropic.types.beta import BetaToolParam
+from anthropic.types.beta import BetaToolParam, BetaUsage
 from pydantic import BaseModel
 
 from app.config import Settings
@@ -14,6 +15,10 @@ class ToolError(Exception):
     """Expected tool failure. The message is sent back to the model as an error result."""
 
 
+def _ignore_usage(usage: BetaUsage) -> None:
+    pass
+
+
 @dataclass(frozen=True)
 class ToolContext:
     """Dependencies shared by all tools."""
@@ -21,6 +26,9 @@ class ToolContext:
     settings: Settings
     icp: ICP
     http: httpx.Client
+    llm: anthropic.Anthropic
+    # Tools that call Claude report token usage here, so it counts toward the lead's total.
+    record_usage: Callable[[BetaUsage], None] = _ignore_usage
 
 
 @dataclass(frozen=True)

@@ -1,14 +1,16 @@
+from dataclasses import replace
+
 import httpx
 import pytest
 
 from app.models.icp import ICP
-from app.models.lead import CompanyInfo, Qualification
+from app.models.lead import CompanyInfo, ContactInfo, Qualification
 from app.tools import ToolContext, ToolError
 from app.tools.crm import SaveToCrmInput, save_to_crm
 from app.tools.email import DraftEmailInput, draft_email
 from app.tools.qualification import score_company
 from app.tools.website import FetchWebsiteInput, fetch_company_website
-from tests.conftest import make_http
+from tests.conftest import FakeEmailWriter, make_http
 
 
 def ideal_company(**overrides: object) -> CompanyInfo:
@@ -19,7 +21,10 @@ def ideal_company(**overrides: object) -> CompanyInfo:
         "employee_count": 200,
         "country": "DK",
         "description": "Moves goods across the Nordics.",
-        "signals": ["hiring_finance", "growth"],
+        "signals": [
+            {"id": "hiring_finance", "evidence": "Hiring a financial controller in Aarhus"},
+            {"id": "growth", "evidence": "Added 161 new trailers to its fleet"},
+        ],
     }
     data.update(overrides)
     return CompanyInfo.model_validate(data)
@@ -57,11 +62,7 @@ def test_fetch_returns_internal_links_priority_first(ctx: ToolContext) -> None:
 def test_fetch_caps_links_but_keeps_priority_pages(ctx: ToolContext) -> None:
     filler = "".join(f'<a href="/product-{i}">Product {i}</a>' for i in range(40))
     html = f'<html><body>{filler}<a href="/contact">Contact</a></body></html>'
-    ctx = ToolContext(
-        settings=ctx.settings,
-        icp=ctx.icp,
-        http=make_http(lambda request: httpx.Response(200, html=html)),
-    )
+    ctx = replace(ctx, http=make_http(lambda request: httpx.Response(200, html=html)))
 
     result = fetch_company_website(FetchWebsiteInput(url="https://x.dk"), ctx)
 
@@ -80,7 +81,7 @@ def test_fetch_truncates_long_text(ctx: ToolContext) -> None:
 
 def test_fetch_http_error_raises_tool_error(ctx: ToolContext) -> None:
     http = make_http(lambda request: httpx.Response(404))
-    ctx = ToolContext(settings=ctx.settings, icp=ctx.icp, http=http)
+    ctx = replace(ctx, http=http)
 
     with pytest.raises(ToolError, match="Could not fetch"):
         fetch_company_website(FetchWebsiteInput(url="https://x.dk"), ctx)
@@ -88,7 +89,7 @@ def test_fetch_http_error_raises_tool_error(ctx: ToolContext) -> None:
 
 def test_fetch_rejects_non_html(ctx: ToolContext) -> None:
     http = make_http(lambda request: httpx.Response(200, json={"a": 1}))
-    ctx = ToolContext(settings=ctx.settings, icp=ctx.icp, http=http)
+    ctx = replace(ctx, http=http)
 
     with pytest.raises(ToolError, match="non-HTML"):
         fetch_company_website(FetchWebsiteInput(url="https://x.dk"), ctx)
@@ -108,6 +109,9 @@ def test_ideal_company_is_hot(icp: ICP) -> None:
     # 30 industry + 25 size + 20 country + 10 hiring + 8 growth
     assert result.score == 93
     assert result.fit == "hot"
+    # Reasons include the evidence, so every point can be traced back to the website.
+    growth = next(r for r in result.reasons if r.startswith("+8:"))
+    assert growth.endswith("(Added 161 new trailers to its fleet)")
 
 
 def test_unknown_facts_score_zero_points(icp: ICP) -> None:
@@ -121,7 +125,7 @@ def test_unknown_facts_score_zero_points(icp: ICP) -> None:
 
 
 def test_signal_points_are_capped(icp: ICP) -> None:
-    all_positive = [s.id for s in icp.signals.positive]  # 10 + 8 + 7 + 5 = 30
+    all_positive = [{"id": s.id, "evidence": "seen"} for s in icp.signals.positive]  # 10+8+7+5
 
     result = score_company(ideal_company(signals=all_positive), icp)
 
@@ -129,7 +133,9 @@ def test_signal_points_are_capped(icp: ICP) -> None:
 
 
 def test_negative_signal_lowers_score(icp: ICP) -> None:
-    result = score_company(ideal_company(signals=["has_competitor"]), icp)
+    result = score_company(
+        ideal_company(signals=[{"id": "has_competitor", "evidence": "Uses Acme AP"}]), icp
+    )
 
     assert result.score == 60
     assert result.fit == "warm"
@@ -139,15 +145,42 @@ def test_negative_signal_lowers_score(icp: ICP) -> None:
 # --- draft_email / save_to_crm ---
 
 
-def test_draft_email_is_personalized(ctx: ToolContext) -> None:
-    qualification = Qualification(score=93, fit="hot", reasons=[])
+def test_draft_email_sends_evidence_and_adds_signature(
+    ctx: ToolContext, email_writer: FakeEmailWriter
+) -> None:
+    recorded = []
+    ctx = replace(ctx, record_usage=recorded.append)
+    params = DraftEmailInput(
+        lead=ideal_company(),
+        qualification=Qualification(score=93, fit="hot", reasons=[]),
+        contact=ContactInfo(name="Anna Holm", job_title="CFO"),
+    )
 
-    email = draft_email(DraftEmailInput(lead=ideal_company(), qualification=qualification), ctx)
+    email = draft_email(params, ctx)
 
-    assert "Nordic Freight" in email.subject
-    assert "Moves goods across the Nordics" in email.body
-    assert "hiring finance or accounting roles" in email.body
-    assert ctx.icp.seller.sender_name in email.body
+    call = email_writer.calls[0]
+    prompt = call["messages"][0]["content"]
+    assert "Added 161 new trailers to its fleet" in prompt  # the concrete fact, not the label
+    assert "Anna Holm" in prompt
+    assert ctx.icp.seller.value_proposition in call["system"]
+    assert call["model"] == ctx.settings.anthropic_model
+
+    assert email.subject == "161 new trailers at Nordic Freight"
+    assert email.body.startswith("Hi Nordic Freight team,")
+    # The signature is added by code, so it is always the configured sender.
+    seller = ctx.icp.seller
+    assert email.body.endswith(f"{seller.sender_name}\n{seller.sender_title}, {seller.company}")
+    assert len(recorded) == 1 and recorded[0].output_tokens == 80
+
+
+def test_draft_email_refusal_raises_tool_error(ctx: ToolContext) -> None:
+    ctx = replace(ctx, llm=FakeEmailWriter(stop_reason="refusal"))
+    params = DraftEmailInput(
+        lead=ideal_company(), qualification=Qualification(score=93, fit="hot", reasons=[])
+    )
+
+    with pytest.raises(ToolError, match="refusal"):
+        draft_email(params, ctx)
 
 
 def test_save_to_crm_dry_run_only_logs(ctx: ToolContext, caplog: pytest.LogCaptureFixture) -> None:

@@ -27,7 +27,9 @@ Ideal Customer Profile:
 - Company size: {icp.company_size.min_employees}-{icp.company_size.max_employees} employees
 - Countries (ISO codes): {", ".join(icp.countries)}
 
-Signal IDs to report in company_info.signals when you find evidence for them:
+Signals to report in company_info.signals, each as {{"id": ..., "evidence": ...}}. The evidence
+is the concrete fact from the website in one short sentence (e.g. "Added 161 new trailers to its
+fleet"), not the signal description. The email is written from this evidence, so be specific.
 Positive:
 {positive}
 Negative:

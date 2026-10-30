@@ -41,6 +41,8 @@ data/               Input lists and local SQLite DB (DB files are gitignored)
 ## Agent design
 - Manual tool-use loop (no LangChain) in `app/agent/loop.py`, max `AGENT_MAX_STEPS` model calls per lead.
 - Claude extracts facts; scoring in `qualify_lead` is deterministic Python driven by `config/icp.yaml`.
+- Signals carry evidence (`{id, evidence}`); `draft_email` is a separate Claude call (structured
+  output) that writes only from that evidence. The signature is appended by code, never by the model.
 - Tool errors are returned to the model as `is_error` tool results, never raised out of the loop.
 - `save_to_crm` upserts company (by domain), contact (by email), deal (by name) and adds a note.
   HubSpot calls are mocked with respx in tests; never hit the real API in tests.

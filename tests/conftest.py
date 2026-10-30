@@ -1,5 +1,7 @@
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
 import httpx
 import pytest
@@ -7,6 +9,7 @@ import pytest
 from app.config import Settings
 from app.models.icp import ICP, load_icp
 from app.tools import ToolContext
+from app.tools.email import EmailContent
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -61,6 +64,43 @@ def html_http() -> httpx.Client:
     )
 
 
+def usage(input_tokens: int, output_tokens: int) -> SimpleNamespace:
+    return SimpleNamespace(
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cache_read_input_tokens=0,
+        cache_creation_input_tokens=0,
+    )
+
+
+class FakeEmailWriter:
+    """Stands in for anthropic.Anthropic: beta.messages.parse returns a canned email."""
+
+    def __init__(self, stop_reason: str = "end_turn") -> None:
+        self.stop_reason = stop_reason
+        self.calls: list[dict[str, Any]] = []
+        self.beta = SimpleNamespace(messages=SimpleNamespace(parse=self._parse))
+
+    def _parse(self, **kwargs: Any) -> SimpleNamespace:
+        self.calls.append(kwargs)
+        content = EmailContent(
+            subject="161 new trailers at Nordic Freight",
+            body="Hi Nordic Freight team,\n\nCongrats on adding 161 new trailers.",
+        )
+        return SimpleNamespace(
+            stop_reason=self.stop_reason,
+            parsed_output=None if self.stop_reason == "refusal" else content,
+            usage=usage(200, 80),
+        )
+
+
 @pytest.fixture
-def ctx(settings: Settings, icp: ICP, html_http: httpx.Client) -> ToolContext:
-    return ToolContext(settings=settings, icp=icp, http=html_http)
+def email_writer() -> FakeEmailWriter:
+    return FakeEmailWriter()
+
+
+@pytest.fixture
+def ctx(
+    settings: Settings, icp: ICP, html_http: httpx.Client, email_writer: FakeEmailWriter
+) -> ToolContext:
+    return ToolContext(settings=settings, icp=icp, http=html_http, llm=email_writer)  # type: ignore[arg-type]

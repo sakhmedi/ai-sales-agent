@@ -44,18 +44,18 @@ def score_company(info: CompanyInfo, icp: ICP) -> Qualification:
     else:
         reasons.append(f"+0: country '{info.country or 'unknown'}' is not in the ICP")
 
-    found = set(info.signals)
+    evidence = {s.id: s.evidence for s in info.signals}
     signal_points = 0
     for signal in icp.signals.positive:
-        if signal.id in found:
+        if signal.id in evidence:
             signal_points += signal.weight
-            reasons.append(f"+{signal.weight}: {signal.description}")
+            reasons.append(f"+{signal.weight}: {signal.description} ({evidence[signal.id]})")
     points += min(signal_points, weights.max_signal_points)
 
     for signal in icp.signals.negative:
-        if signal.id in found:
+        if signal.id in evidence:
             points -= signal.weight
-            reasons.append(f"-{signal.weight}: {signal.description}")
+            reasons.append(f"-{signal.weight}: {signal.description} ({evidence[signal.id]})")
 
     score = max(0, min(100, points))
     return Qualification(score=score, fit=_fit_for(score, icp), reasons=reasons)
