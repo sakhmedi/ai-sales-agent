@@ -120,6 +120,7 @@ class LeadResult(BaseModel):
     company: CompanyInput
     status: LeadStatus
     company_info: CompanyInfo | None = None
+    contact: ContactInfo | None = None
     qualification: Qualification | None = None
     email: EmailDraft | None = None
     crm: CrmSaveResult | None = None

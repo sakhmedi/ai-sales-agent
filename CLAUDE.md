@@ -34,7 +34,8 @@ app/
   api/              FastAPI routers
   models/           Pydantic models (API schemas, domain objects)
   batch.py          CSV loading + batch runner (one failing company never stops the batch)
-  storage.py        SQLAlchemy models and helpers for the lead_results table
+  storage.py        SQLAlchemy: lead_results (run log), leads, emails; persist_result()
+  outbox.py         Human review CLI: list / show / approve (sends) / reject
 config/icp.yaml     Ideal Customer Profile: industries, size, countries, signals, scoring
 tests/              pytest tests (the agent loop is tested with a scripted fake client)
 data/               Input lists and local SQLite DB (DB files are gitignored)
@@ -59,6 +60,8 @@ data/               Input lists and local SQLite DB (DB files are gitignored)
   Never log secrets or full email bodies at INFO level.
 - **No secrets in code.** All keys and tokens come from `app.config.Settings` (env / `.env`).
   Secrets are typed as `SecretStr`. `.env` is never committed; update `.env.example` when adding settings.
+- **The agent never sends email.** Drafts are stored as `pending_approval`; sending happens only in
+  `app/outbox.py` after a human approves. Never give the agent a send tool.
 - **DRY_RUN is the default.** With `DRY_RUN=true`, nothing is sent and nothing is written to HubSpot;
   side-effecting code must check `settings.dry_run` and log what it *would* do.
 - External HTTP calls use `httpx` with explicit timeouts.
@@ -73,6 +76,7 @@ cp .env.example .env                      # then fill in values
 uv run uvicorn app.main:app --reload      # run API at http://127.0.0.1:8000 (docs at /docs)
 uv run python -m app.agent "Name" https://example.com   # run the agent on one company
 uv run python -m app.batch data/companies.csv [--limit N]  # run a CSV list, results -> SQLite
+uv run python -m app.outbox list|show ID|approve ID [--to addr]|reject ID  # review drafts
 uv run pytest                             # run tests
 uv run ruff check .                       # lint
 uv run ruff format .                      # format

@@ -22,6 +22,7 @@ COMPANY_INFO = {
     "signals": [{"id": "hiring_finance", "evidence": "Hiring a financial controller"}],
 }
 QUALIFICATION = {"score": 85, "fit": "hot", "reasons": ["test"]}
+CONTACT = {"name": "Anna Holm", "email": "anna@nordicfreight.dk"}
 
 
 def tool_use(block_id: str, name: str, tool_input: dict[str, Any]) -> SimpleNamespace:
@@ -82,7 +83,9 @@ def test_full_run_completes(settings: Settings, icp: ICP, html_http: httpx.Clien
             response(
                 "tool_use",
                 tool_use(
-                    "t4", "save_to_crm", {"lead": COMPANY_INFO, "qualification": QUALIFICATION}
+                    "t4",
+                    "save_to_crm",
+                    {"lead": COMPANY_INFO, "qualification": QUALIFICATION, "contact": CONTACT},
                 ),
             ),
             response("end_turn", text("Hot lead: Danish logistics company, hiring finance.")),
@@ -97,6 +100,7 @@ def test_full_run_completes(settings: Settings, icp: ICP, html_http: httpx.Clien
     assert result.qualification is not None and result.qualification.fit == "hot"
     assert result.email is not None
     assert result.crm is not None and result.crm.status == "dry_run"
+    assert result.contact is not None and result.contact.email == "anna@nordicfreight.dk"
     assert result.summary.startswith("Hot lead")
     # 5 agent steps (100 in / 20 out each) + the draft_email call (200 in / 80 out).
     assert result.usage.input_tokens == 500 + 200

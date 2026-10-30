@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: SecretStr = SecretStr("")
     smtp_from: str = ""
+    # Port 465 uses implicit TLS (SMTP_SSL); other ports use STARTTLS.
+    smtp_use_ssl: bool = False
+    # Safety net for testing: when set, every approved email goes to this address instead.
+    email_redirect_to: str = ""
 
     # When true, no real emails are sent and nothing is written to the CRM.
     dry_run: bool = True

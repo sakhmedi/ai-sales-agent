@@ -21,6 +21,7 @@ from app.models.icp import ICP
 from app.models.lead import (
     CompanyInfo,
     CompanyInput,
+    ContactInfo,
     CrmSaveResult,
     EmailDraft,
     LeadResult,
@@ -29,6 +30,8 @@ from app.models.lead import (
     TokenUsage,
 )
 from app.tools import ALL_TOOLS, Tool, ToolContext, ToolError
+from app.tools.crm import SaveToCrmInput
+from app.tools.email import DraftEmailInput
 from app.tools.qualification import QualifyLeadInput
 
 logger = logging.getLogger(__name__)
@@ -42,6 +45,7 @@ class _RunState:
     """What the tools have produced so far for the current lead."""
 
     company_info: CompanyInfo | None = None
+    contact: ContactInfo | None = None
     qualification: Qualification | None = None
     email: EmailDraft | None = None
     crm: CrmSaveResult | None = None
@@ -49,6 +53,8 @@ class _RunState:
     def record(self, params: BaseModel, output: BaseModel) -> None:
         if isinstance(params, QualifyLeadInput):
             self.company_info = params.company_info
+        if isinstance(params, (DraftEmailInput, SaveToCrmInput)) and params.contact:
+            self.contact = params.contact
         if isinstance(output, Qualification):
             self.qualification = output
         elif isinstance(output, EmailDraft):
@@ -95,6 +101,7 @@ class SalesAgent:
                 company=company,
                 status=status,
                 company_info=state.company_info,
+                contact=state.contact,
                 qualification=state.qualification,
                 email=state.email,
                 crm=state.crm,

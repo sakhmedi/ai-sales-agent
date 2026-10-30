@@ -29,6 +29,52 @@ Each result is saved to SQLite (`data/app.db`, table `lead_results`) as soon as 
 done, so an interrupted batch keeps what it already processed. One failing company never stops the batch.
 Your own CSV files in `data/` are gitignored; only the example is committed.
 
+## Sending emails (human approval)
+
+**The agent never sends email.** Every draft is stored in SQLite with status `pending_approval`.
+A person reviews it and only an explicit `approve` sends it.
+
+```bash
+uv run python -m app.outbox list                         # drafts waiting for approval
+uv run python -m app.outbox show 1                       # email + why the lead qualified
+uv run python -m app.outbox approve 1 --to anna@company.com
+uv run python -m app.outbox reject 1
+```
+`--to` is needed when the agent found no contact email on the website. `--by` records the reviewer
+(defaults to your OS user name).
+
+Statuses in SQLite:
+
+| Lead (`leads`) | Email (`emails`) |
+|---|---|
+| `new` → `qualified` / `disqualified` → `pending_approval` → `sent` | `pending_approval` → `sent` / `rejected` / `failed`, or `superseded` by a newer draft |
+
+Safety rules built in: an email can be sent only once; a lead that was already emailed never gets a
+second draft; with `DRY_RUN=true`, `approve` only logs what it would send and changes nothing.
+
+### SMTP setup for testing
+
+**Mailtrap (recommended).** A fake inbox: emails are caught and never reach real people.
+1. Sign up free at https://mailtrap.io, open **Email Testing → Inboxes → My Inbox → SMTP**.
+2. Copy host, port, username and password into `.env`:
+   ```
+   SMTP_HOST=sandbox.smtp.mailtrap.io
+   SMTP_PORT=2525
+   SMTP_USER=<mailtrap username>
+   SMTP_PASSWORD=<mailtrap password>
+   SMTP_FROM=sdr@example.com
+   ```
+
+**Gmail with an App Password.** Real delivery, so use it only with your own addresses.
+1. Turn on 2-Step Verification for your Google account.
+2. Create an App Password at https://myaccount.google.com/apppasswords.
+3. In `.env`: `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_USER` and `SMTP_FROM` = your Gmail
+   address, `SMTP_PASSWORD` = the 16-character App Password.
+4. Set `EMAIL_REDIRECT_TO=<your own address>` so every approved email comes to you instead of
+   the real recipient (the intended recipient is shown in the subject).
+
+Then set `DRY_RUN=false` and approve one draft. Set `DRY_RUN=true` again afterwards.
+
 ## HubSpot setup
 
 The agent writes to HubSpot with a **service key**, an account-level API token. A free HubSpot

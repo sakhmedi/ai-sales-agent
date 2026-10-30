@@ -11,7 +11,7 @@ from app.models.lead import (
     Qualification,
     TokenUsage,
 )
-from app.storage import load_run, make_engine, save_result
+from app.storage import load_run, make_engine, persist_result
 
 
 @pytest.fixture
@@ -80,8 +80,8 @@ def test_load_companies_requires_columns(tmp_path: Path) -> None:
 def test_save_and_load_result(engine: Engine) -> None:
     company = CompanyInput(name="LEMAN", website="https://leman.com")
 
-    save_result(engine, "run-1", result_for(company))
-    save_result(engine, "run-2", result_for(company, fit="cold", score=10))
+    persist_result(engine, "run-1", result_for(company))
+    persist_result(engine, "run-2", result_for(company, fit="cold", score=10))
 
     [record] = load_run(engine, "run-1")
     assert (record.company_name, record.status, record.score, record.fit) == (

@@ -25,7 +25,7 @@ from app.integrations.hubspot import company_domain
 from app.logging_config import setup_logging
 from app.models.icp import load_icp
 from app.models.lead import CompanyInput, LeadResult, LeadStatus, TokenUsage
-from app.storage import make_engine, save_result
+from app.storage import make_engine, persist_result
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +99,7 @@ def run_batch(
             logger.exception("Unexpected error while processing %s", company.name)
             result = LeadResult(company=company, status=LeadStatus.FAILED, error=repr(e))
 
-        save_result(engine, run_id, result)
+        persist_result(engine, run_id, result)
         statuses[result.status] += 1
         if result.qualification:
             fits[result.qualification.fit] += 1
