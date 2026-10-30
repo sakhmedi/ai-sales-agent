@@ -61,8 +61,10 @@ class Lead(Base):
     status: Mapped[str] = mapped_column(String(32), default=LeadStage.NEW)
     score: Mapped[int | None]
     fit: Mapped[str | None] = mapped_column(String(8))
+    contact_name: Mapped[str | None] = mapped_column(String(255))
     contact_email: Mapped[str | None] = mapped_column(String(320))
     last_run_id: Mapped[str | None] = mapped_column(String(36))
+    last_result_id: Mapped[int | None] = mapped_column(ForeignKey("lead_results.id"))
     last_error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(default=_now)
     updated_at: Mapped[datetime] = mapped_column(default=_now, onupdate=_now)
@@ -103,7 +105,9 @@ def make_engine(database_url: str) -> Engine:
     url = make_url(database_url)
     if url.get_backend_name() == "sqlite" and url.database and url.database != ":memory:":
         Path(url.database).parent.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(url)
+    # FastAPI runs sync endpoints in a thread pool, so SQLite connections cross threads.
+    connect_args = {"check_same_thread": False} if url.get_backend_name() == "sqlite" else {}
+    engine = create_engine(url, connect_args=connect_args)
     Base.metadata.create_all(engine)
     return engine
 
@@ -150,10 +154,14 @@ def persist_result(engine: Engine, run_id: str, result: LeadResult) -> Persisted
                 status=LeadStage.NEW,
             )
             session.add(lead)
+        session.flush()  # assigns run_record.id
         lead.last_run_id = run_id
+        lead.last_result_id = run_record.id
         lead.last_error = result.error
+        # Keep an imported contact; only fill in what this run actually found.
         if result.contact and result.contact.email:
             lead.contact_email = result.contact.email
+            lead.contact_name = result.contact.name or lead.contact_name
 
         if lead.status == LeadStage.SENT:
             # Never queue a second cold email for a company we already contacted.

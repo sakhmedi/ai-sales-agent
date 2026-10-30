@@ -13,21 +13,42 @@ uv run pytest
 uv run python -m app.agent "Company name" https://company.example
 ```
 
-The API runs with `uv run uvicorn app.main:app --reload` (health check at http://127.0.0.1:8000/health).
-
 By default `DRY_RUN=true`: the agent logs what it would send to HubSpot and writes nothing.
 
-## Process a list of companies
-Put companies in a CSV with `name` and `website` columns (comma or semicolon separated,
-so Excel exports work). See `data/companies.example.csv`.
+## Process a list of leads
+Put leads in a CSV with `company_name` (or `name`) and `website`, plus optional `contact_name`
+and `contact_email`. Comma or semicolon separators both work, so Excel exports are fine.
+`data/sample_leads.csv` has 10 public Danish B2B companies with fake `@example.com` contacts.
 
 ```bash
-uv run python -m app.batch data/companies.example.csv
-uv run python -m app.batch data/my_companies.csv --limit 5   # first 5 only
+uv run python -m app.cli run data/sample_leads.csv --limit 2   # import + run 2 new leads
+uv run python -m app.cli import data/my_leads.csv              # import only
+uv run python -m app.cli leads --fit warm                      # list leads
 ```
-Each result is saved to SQLite (`data/app.db`, table `lead_results`) as soon as the company is
-done, so an interrupted batch keeps what it already processed. One failing company never stops the batch.
-Your own CSV files in `data/` are gitignored; only the example is committed.
+Leads are stored in SQLite (`data/app.db`) with status `new`; each run moves them on and is saved
+right away, so an interrupted batch keeps what it already processed. One failing lead never stops
+the batch (it stays `new` and is retried next time). Your own CSV files in `data/` are gitignored.
+
+> **Upgrading from an older version?** The database schema changed. Delete `data/app.db` once;
+> it is recreated on the next run. (Schema migrations with Alembic are a planned follow-up.)
+
+## HTTP API
+```bash
+uv run uvicorn app.main:app --reload
+```
+Open http://127.0.0.1:8000/docs to try every endpoint in the browser.
+
+| Method | Path | What it does |
+|---|---|---|
+| `POST` | `/leads/import` | upload a CSV (multipart field `file`) |
+| `GET` | `/leads?fit=hot&status=pending_approval` | list leads, best score first |
+| `GET` | `/leads/{id}` | lead + latest email draft + qualification reasons |
+| `POST` | `/leads/{id}/run` | run the agent on one lead (~20 s) |
+| `POST` | `/leads/run-batch?limit=10` | run the agent on all `new` leads, one by one |
+| `POST` | `/leads/{id}/approve` | `{"reviewer": "...", "to": "optional"}`: send the pending email |
+| `POST` | `/leads/{id}/reject` | `{"reviewer": "..."}`: reject the pending email |
+
+Runs are synchronous to keep the project simple; in production they would go to a job queue.
 
 ## Sending emails (human approval)
 

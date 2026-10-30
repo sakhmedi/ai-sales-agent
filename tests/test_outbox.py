@@ -6,7 +6,6 @@ import pytest
 from sqlalchemy import Engine, select
 
 from app.config import Settings
-from app.integrations.email import EmailSendError
 from app.models.lead import (
     CompanyInput,
     ContactInfo,
@@ -18,20 +17,9 @@ from app.models.lead import (
 from app.models.outreach import EmailStatus, LeadStage
 from app.outbox import OutboxError, approve, list_pending, reject
 from app.storage import Email, Lead, make_engine, open_session, persist_result
+from tests.conftest import FakeSender
 
 LEMAN = CompanyInput(name="LEMAN", website="https://leman.com")
-
-
-class FakeSender:
-    def __init__(self, fail: bool = False) -> None:
-        self.fail = fail
-        self.sent: list[tuple[str, str, str]] = []
-
-    def send(self, to: str, subject: str, body: str) -> str:
-        if self.fail:
-            raise EmailSendError("SMTP login failed.")
-        self.sent.append((to, subject, body))
-        return "<msg-1@fjordflow.dk>"
 
 
 @pytest.fixture

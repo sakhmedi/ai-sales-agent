@@ -81,7 +81,8 @@ class SalesAgent:
         self._system_prompt = build_system_prompt(icp)
         self._ctx = ToolContext(settings=settings, icp=icp, http=http, llm=client)
 
-    def run(self, company: CompanyInput) -> LeadResult:
+    def run(self, company: CompanyInput, contact: ContactInfo | None = None) -> LeadResult:
+        """Process one company. `contact` is a person already known from the lead list."""
         logger.info(
             "=== Lead: %s (%s) model=%s effort=%s",
             company.name,
@@ -89,8 +90,10 @@ class SalesAgent:
             self._settings.anthropic_model,
             self._settings.anthropic_effort,
         )
-        messages: list[BetaMessageParam] = [{"role": "user", "content": build_user_prompt(company)}]
-        state = _RunState()
+        messages: list[BetaMessageParam] = [
+            {"role": "user", "content": build_user_prompt(company, contact)}
+        ]
+        state = _RunState(contact=contact)
         usage = TokenUsage()
         # Tools that call Claude (draft_email) add their tokens to this lead's total.
         ctx = replace(self._ctx, record_usage=usage.add)

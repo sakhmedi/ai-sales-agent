@@ -31,9 +31,10 @@ app/
   agent/            Agent loop (loop.py), prompts, CLI entry point (__main__.py)
   tools/            Tools the agent can call: one module per tool, registered in ALL_TOOLS
   integrations/     Clients for external services; hubspot.py = HubSpot CRM (v3, retries)
-  api/              FastAPI routers
+  api/              FastAPI routers (leads.py) and dependencies (deps.py, overridden in tests)
   models/           Pydantic models (API schemas, domain objects)
-  batch.py          CSV loading + batch runner (one failing company never stops the batch)
+  pipeline.py       Shared service layer: CSV import, run lead(s), list, approve (API + CLI use it)
+  cli.py            CLI: run / import / leads
   storage.py        SQLAlchemy: lead_results (run log), leads, emails; persist_result()
   outbox.py         Human review CLI: list / show / approve (sends) / reject
 config/icp.yaml     Ideal Customer Profile: industries, size, countries, signals, scoring
@@ -75,7 +76,7 @@ uv sync                                   # install dependencies (incl. dev grou
 cp .env.example .env                      # then fill in values
 uv run uvicorn app.main:app --reload      # run API at http://127.0.0.1:8000 (docs at /docs)
 uv run python -m app.agent "Name" https://example.com   # run the agent on one company
-uv run python -m app.batch data/companies.csv [--limit N]  # run a CSV list, results -> SQLite
+uv run python -m app.cli run data/sample_leads.csv [--limit N]  # import CSV + run new leads
 uv run python -m app.outbox list|show ID|approve ID [--to addr]|reject ID  # review drafts
 uv run pytest                             # run tests
 uv run ruff check .                       # lint

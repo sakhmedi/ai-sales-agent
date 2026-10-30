@@ -17,7 +17,7 @@ dist/
 data/*.db
 data/*.sqlite*
 data/*.csv
-!data/companies.example.csv
+!data/sample_leads.csv
 
 # Tool caches
 .pytest_cache/

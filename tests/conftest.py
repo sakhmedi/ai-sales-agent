@@ -7,6 +7,7 @@ import httpx
 import pytest
 
 from app.config import Settings
+from app.integrations.email import EmailSendError
 from app.models.icp import ICP, load_icp
 from app.tools import ToolContext
 from app.tools.email import EmailContent
@@ -104,3 +105,17 @@ def ctx(
     settings: Settings, icp: ICP, html_http: httpx.Client, email_writer: FakeEmailWriter
 ) -> ToolContext:
     return ToolContext(settings=settings, icp=icp, http=html_http, llm=email_writer)  # type: ignore[arg-type]
+
+
+class FakeSender:
+    """Stands in for SmtpSender: records emails instead of sending them."""
+
+    def __init__(self, fail: bool = False) -> None:
+        self.fail = fail
+        self.sent: list[tuple[str, str, str]] = []
+
+    def send(self, to: str, subject: str, body: str) -> str:
+        if self.fail:
+            raise EmailSendError("SMTP login failed.")
+        self.sent.append((to, subject, body))
+        return "<msg-1@fjordflow.dk>"

@@ -1,5 +1,5 @@
 from app.models.icp import ICP
-from app.models.lead import CompanyInput
+from app.models.lead import CompanyInput, ContactInfo
 
 
 def build_system_prompt(icp: ICP) -> str:
@@ -45,5 +45,12 @@ Rules:
 - Do not call the same tool with the same input twice."""
 
 
-def build_user_prompt(company: CompanyInput) -> str:
-    return f"Process this company.\nName: {company.name}\nWebsite: {company.website}"
+def build_user_prompt(company: CompanyInput, contact: ContactInfo | None = None) -> str:
+    prompt = f"Process this company.\nName: {company.name}\nWebsite: {company.website}"
+    if contact:
+        known = contact.model_dump_json(exclude_none=True)
+        prompt += (
+            f"\nKnown contact from the lead list: {known}. "
+            "Pass it as the contact to draft_email and save_to_crm."
+        )
+    return prompt

@@ -8,7 +8,7 @@ import httpx
 from app.agent import SalesAgent
 from app.config import Settings
 from app.models.icp import ICP
-from app.models.lead import CompanyInput, LeadStatus
+from app.models.lead import CompanyInput, ContactInfo, LeadStatus
 from tests.conftest import FakeEmailWriter
 
 COMPANY = CompanyInput(name="Nordic Freight", website="https://nordicfreight.dk")
@@ -173,3 +173,17 @@ def test_refusal_marks_lead_failed(settings: Settings, icp: ICP, html_http: http
 
     assert result.status == LeadStatus.FAILED
     assert result.error is not None and "refusal" in result.error
+
+
+def test_known_contact_is_given_to_the_model_and_kept(
+    settings: Settings, icp: ICP, html_http: httpx.Client
+) -> None:
+    client = FakeClient([response("end_turn", text("Done."))])
+    contact = ContactInfo(name="Test Contact", email="test+leman@example.com")
+
+    result = make_agent(client, settings, icp, html_http).run(COMPANY, contact)
+
+    first_prompt = client.calls[0]["messages"][0]["content"]
+    assert "test+leman@example.com" in first_prompt
+    # Kept even though the model never passed it to a tool.
+    assert result.contact == contact

@@ -31,6 +31,10 @@ class OutboxError(Exception):
     """The requested review action is not allowed."""
 
 
+class MissingRecipient(OutboxError):
+    """There is no address to send the email to."""
+
+
 class EmailSender(Protocol):
     def send(self, to: str, subject: str, body: str) -> str: ...
 
@@ -86,8 +90,8 @@ def approve(
         email = _pending(session, email_id)
         recipient = (to or email.to_address or "").strip()
         if "@" not in recipient:
-            raise OutboxError(
-                f"Email {email_id} has no valid recipient. Pass one with --to name@company.com."
+            raise MissingRecipient(
+                f'Email {email_id} has no valid recipient. Pass one with --to (CLI) or "to" (API).'
             )
 
         if settings.dry_run:
